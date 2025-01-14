@@ -86,4 +86,4 @@ To get started with this project:
 text
 
 3. Run the Streamlit application:
-streamlit run app.py
+streamlit run app1.py
