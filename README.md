@@ -5,7 +5,7 @@
 
 ## Shubham Jadhav (IIT Roorkee)
 
-**Enrolment Number:** 20410013
+
 
 ---
 
@@ -82,3 +82,8 @@ The primary goal of this project is to create a **user-friendly interface** that
 To get started with this project:
 
 1. Clone this repository:
+2. pip install -r requirements.txt
+text
+
+3. Run the Streamlit application:
+streamlit run app.py
