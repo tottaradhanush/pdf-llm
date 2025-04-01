@@ -77,7 +77,7 @@ prompt = ChatPromptTemplate.from_template(
 )
 
 def is_out_of_context(answer):
-    out_of_context_keywords = ["I don’t know", "not sure", "out of context", "invalid", "There is no mention", "no mention"]
+    out_of_context_keywords = ["I don't know", "not sure", "out of context", "invalid", "There is no mention", "no mention"]
     return any(keyword in answer.lower() for keyword in out_of_context_keywords)
 
 # Create vector database out of uploaded PDF
