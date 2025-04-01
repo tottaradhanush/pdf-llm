@@ -1,12 +1,6 @@
-#AI Chatbot Assignment- Quicksell (AI Engineer)
-
-#Name: Shubham Jadhav (IIT ROORKEE)
-#Enrolment Number: 20410013
-
-
 import streamlit as st
 import os
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -17,14 +11,60 @@ from langchain_community.document_loaders import PyPDFLoader
 from dotenv import load_dotenv
 import tempfile
 
+
 load_dotenv()
 
-groq_api_key = os.getenv('GROQ_API_KEY')
+gemini_api_key = os.getenv('GEMINI_API_KEY')
 
-st.markdown("<h2 style='text-align: center;'>AI Chatbot Assignment-Quicksell:By Shubham Jadhav(IIT ROORKEE ,20410013) </h2>", unsafe_allow_html=True)
+# Apply dark blue theme and chat-like styling using custom CSS
+st.markdown("""
+     <style>
+        body {
+            background-color: #FFFFFF;
+            color: #333333;
+        }
+        .chat-box {
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        .user-message {
+            background-color: #e1f5fe;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #81d4fa;
+            margin: 10px 0;
+        }
+        .ai-response {
+            background-color: #f1f8e9;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #c5e1a5;
+            margin: 10px 0;
+        }
+        .header {
+            text-align: center;
+            font-size: 2em;
+            color: #333333;
+        }
+        .subheader {
+            text-align: center;
+            font-size: 1.2em;
+            color: #666666;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-llm = ChatGroq(groq_api_key=groq_api_key, model_name="Llama3-8b-8192")
+# Display the header and subheader
+st.markdown("<h1 class='header'>AI Chatbot for PDF Q&A</h1>", unsafe_allow_html=True)
+st.markdown("<h4 class='subheader'>Upload your PDF, create a vector database, and ask questions</h4>", unsafe_allow_html=True)
 
+# Initialize the language model
+llm = ChatGoogleGenerativeAI(google_api_key=gemini_api_key, model="gemini-2.0-flash")
+
+# Define prompt template
 prompt = ChatPromptTemplate.from_template(
     """
     Answer the questions based on the provided context only.
@@ -37,16 +77,10 @@ prompt = ChatPromptTemplate.from_template(
 )
 
 def is_out_of_context(answer):
-    # Define criteria for determining if the answer is out of context
-    out_of_context_keywords = ["I don’t know", "not sure", "out of context", "invalid","There is no mention"," no mention"]
-    
-    # Check if any keyword is in the answer
-    for keyword in out_of_context_keywords:
-        if keyword in answer.lower():
-            return True
-    
-    return False
+    out_of_context_keywords = ["I don’t know", "not sure", "out of context", "invalid", "There is no mention", "no mention"]
+    return any(keyword in answer.lower() for keyword in out_of_context_keywords)
 
+# Create vector database out of uploaded PDF
 def create_vector_db_out_of_the_uploaded_pdf_file(pdf_file):
     if "vector_store" not in st.session_state:
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -54,7 +88,6 @@ def create_vector_db_out_of_the_uploaded_pdf_file(pdf_file):
             pdf_file_path = temp_file.name
 
         st.session_state.embeddings = HuggingFaceEmbeddings(model_name='BAAI/bge-small-en-v1.5', model_kwargs={'device': 'cpu'}, encode_kwargs={'normalize_embeddings': True})
-        
         st.session_state.loader = PyPDFLoader(pdf_file_path)
         st.session_state.text_document_from_pdf = st.session_state.loader.load()
         st.session_state.text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -62,31 +95,40 @@ def create_vector_db_out_of_the_uploaded_pdf_file(pdf_file):
         st.session_state.final_document_chunks = st.session_state.text_splitter.split_documents(st.session_state.text_document_from_pdf)
         st.session_state.vector_store = FAISS.from_documents(st.session_state.final_document_chunks, st.session_state.embeddings)
 
-pdf_input_from_user = st.file_uploader("Please Upload your PDF file", type=['pdf'])
+# File uploader UI with instructions
+pdf_input_from_user = st.file_uploader("Please Upload your PDF file", type=['pdf'], help="Upload a PDF file to process and create a vector database.")
 
 if pdf_input_from_user is not None:
-    if st.button("Create your vector database"):
-        create_vector_db_out_of_the_uploaded_pdf_file(pdf_input_from_user)
-        st.success("PDF file is ready and we are good to go!")
+    st.info("You have uploaded a PDF. Click the button below to create the vector database.")
 
+    if st.button("Create Vector Database"):
+        with st.spinner("Processing PDF and creating embeddings..."):
+            create_vector_db_out_of_the_uploaded_pdf_file(pdf_input_from_user)
+            st.success("PDF file processed and vector database created successfully!")
+
+# Chat interface for asking questions
 if "vector_store" in st.session_state:
-    user_prompt = st.text_input("Enter Your Question for uploaded PDF")
+    user_prompt = st.text_input("Enter your question about the PDF content:")
 
     if st.button('Submit Prompt'):
         if user_prompt:
-            if "vector_store" in st.session_state:
+            # Display the user question in a chat-like box
+            st.markdown(f'<div class="chat-box user-message">You: {user_prompt}</div>', unsafe_allow_html=True)
+            
+            with st.spinner("Fetching the answer..."):
                 document_chain = create_stuff_documents_chain(llm, prompt)
                 retriever = st.session_state.vector_store.as_retriever()
                 retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
                 response = retrieval_chain.invoke({'input': user_prompt})
 
-                # Check if the response is relevant or not
+                # Check if the response is relevant
                 if is_out_of_context(response['answer']):
-                    st.write("Sorry, I didn’t understand your question. Do you want to connect with a live agent?")
+                    st.write("Sorry, I didn’t understand your question. Would you like to connect with a live agent?")
                 else:
-                    st.write(response['answer'])
-            else:
-                st.write("Please upload the PDF first and create embeddings")
+                    # Display the AI's response in a chat-like box
+                    st.markdown(f'<div class="chat-box ai-response">AI: {response["answer"]}</div>', unsafe_allow_html=True)
         else:
-            st.error('Please write your prompt')
+            st.error("Please enter a question before submitting.")
+else:
+    st.warning("Please upload a PDF and create the vector database before asking questions.")
